@@ -15,8 +15,9 @@ This skill helps you do three things:
 
 ## Critical context (read once, internalize)
 
+- **Target framework / version.** The current package (`Gehtsoft.TagHelpers` 0.7.1) targets `net10.0`. The consuming project must target `net10.0` (or a compatible newer TFM); older `net8.0`/`net9.0` projects must be retargeted before adding the package.
 - **Two registrations are required** in `ConfigureServices`: `services.AddTagHelperServices(env)` registers the core; `services.AddKendo2022Driver()` registers the *driver* that actually emits HTML. **Without the driver, no `<x-*>` tag renders correctly** — the legacy fallback path is incomplete and should not be relied on.
-- **Kendo UI is not bundled.** The library expects Kendo UI assets at `wwwroot/lib/Kendo.UI/{script,css}/...`. You install Kendo separately (Bower is the canonical method). The `<x-lib-includes>` tag emits `<script>`/`<link>` tags pointing into this directory.
+- **Kendo UI is not bundled.** The library expects Kendo UI assets at `wwwroot/lib/Kendo.UI/{script,css}/...`. You install Kendo separately. The current canonical method is the `Gehtsoft.Build.ContentDelivery` MSBuild package (used by the library's own `TestApp`); Bower and manual placement remain supported. The `<x-lib-includes>` tag emits `<script>`/`<link>` tags pointing into this directory.
 - **`<x-lib-includes>` and `_ViewImports.cshtml` are both mandatory.** Without `@addTagHelper *, Gehtsoft.TagHelpers` the parser silently treats `<x-form>` as raw HTML; without `<x-lib-includes>` (or equivalent bundles) the page loads but Kendo widgets never initialize.
 - **Examples below use generic models** (`Customer`, `Product`, `Invoice`). Substitute the user's real model — never copy these names verbatim into the user's code.
 
@@ -26,8 +27,9 @@ A complete install touches five places. Detailed steps and rationale: **`referen
 
 ```
 ┌──────────────────────────────┬────────────────────────────────────────────────┐
-│ Project                      │ Add <PackageReference Include="Gehtsoft.TagHel-│
-│   .csproj                    │ pers" Version="*" />                           │
+│ Project                      │ <TargetFramework>net10.0</TargetFramework>     │
+│   .csproj                    │ <PackageReference Include="Gehtsoft.TagHelpers"│
+│                              │     Version="0.7.1" />                         │
 ├──────────────────────────────┼────────────────────────────────────────────────┤
 │ Program.cs / Startup.cs      │ services.AddTagHelperServices(env);            │
 │   (in ConfigureServices)     │ services.AddKendo2022Driver();                 │
@@ -38,8 +40,9 @@ A complete install touches five places. Detailed steps and rationale: **`referen
 │   (inside <head>)            │                  minimize="true" />            │
 ├──────────────────────────────┼────────────────────────────────────────────────┤
 │ wwwroot/lib/Kendo.UI/        │ Kendo UI scripts + theme CSS                   │
-│   (via Bower or manual)      │ (jquery.min.js, kendo.all.min.js, kendo.<theme>│
-│                              │  .min.css, etc. — see references/setup.md)     │
+│   (via Gehtsoft.Build.       │ (jquery.min.js, kendo.all.min.js, kendo.<theme>│
+│   ContentDelivery MSBuild    │  .min.css, etc. — see references/setup.md)     │
+│   target, Bower, or manual)  │                                                │
 └──────────────────────────────┴────────────────────────────────────────────────┘
 ```
 
@@ -51,7 +54,7 @@ The library has ~50 tags. Group them by purpose and load the matching reference 
 
 | You need to… | Load this reference | Key tags |
 |--------------|---------------------|----------|
-| Install or wire up the library | **`references/setup.md`** | (DI calls, `_ViewImports`, `_Layout`, Bower) |
+| Install or wire up the library | **`references/setup.md`** | (DI calls, `_ViewImports`, `_Layout`, MSBuild content delivery / Bower) |
 | Build a form with input controls and validation | **`references/forms.md`** | `x-form`, `x-control`, `x-edit`, `x-numeric-edit`, `x-date-edit`, `x-select`, `x-check`, `x-radio`, `x-text-area`, `x-tree-control`, `x-upload`, `x-validate`, `x-form-errors`, `x-form-group` |
 | Render a data grid (paged/sorted/filterable, optionally editable) | **`references/grids.md`** | `x-grid`, `x-grid-column`, `x-server-datasource`, `x-server-transport`, `x-server-schema`, `x-server-model` |
 | Add navigation, popups, layout widgets, scripts, bundles | **`references/common.md`** | `x-bundle`, `x-lib-includes`, `x-script`, `x-template`, `x-popup`, `x-menu` family, `x-tabstrip`, `x-splitter`, `x-button`, `x-button-group`, `x-notification`, `x-link`, `x-row`/`x-col`, `x-area` |
@@ -140,6 +143,7 @@ Notes on this example:
 ## Required vs. optional dependencies
 
 Required by the library at runtime:
+- `.NET 10` (`net10.0` TFM) — the package targets `net10.0` only
 - `Microsoft.AspNetCore.App` (framework reference, present by default in MVC projects)
 - jQuery (loaded via the Kendo bundle)
 - Kendo UI 2022.x assets in `wwwroot/lib/Kendo.UI/`

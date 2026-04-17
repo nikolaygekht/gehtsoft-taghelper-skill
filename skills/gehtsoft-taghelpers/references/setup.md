@@ -9,8 +9,9 @@ Detailed installation and wiring of the library into an ASP.NET Core MVC project
 - [3. `_ViewImports.cshtml`](#3-_viewimportscshtml)
 - [4. `_Layout.cshtml` head](#4-_layoutcshtml-head)
 - [5. Kendo UI assets in `wwwroot/lib/Kendo.UI/`](#5-kendo-ui-assets-in-wwwrootlibkendoui)
-   - [5a. Bower (preferred)](#5a-bower-preferred)
-   - [5b. Manual placement](#5b-manual-placement)
+   - [5a. Gehtsoft.Build.ContentDelivery — MSBuild target (preferred)](#5a-gehtsoftbuildcontentdelivery--msbuild-target-preferred)
+   - [5b. Bower (legacy)](#5b-bower-legacy)
+   - [5c. Manual placement](#5c-manual-placement)
 - [6. Themes](#6-themes)
 - [7. Verification — minimal smoke test](#7-verification--minimal-smoke-test)
 - [8. Default ASP.NET MVC template — what to change](#8-default-aspnet-mvc-template--what-to-change)
@@ -19,18 +20,28 @@ Detailed installation and wiring of the library into an ASP.NET Core MVC project
 
 ## 1. NuGet package
 
+The current package is **`Gehtsoft.TagHelpers` 0.7.1**, targeting **`net10.0`**. The consuming project's `.csproj` must use a compatible target framework — typically:
+
+```xml
+<PropertyGroup>
+  <TargetFramework>net10.0</TargetFramework>
+</PropertyGroup>
+```
+
+If the project still targets `net8.0` or `net9.0`, retarget it before adding the package — the package will not restore against an older TFM.
+
 Add to the project's `.csproj`:
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="Gehtsoft.TagHelpers" Version="*" />
+  <PackageReference Include="Gehtsoft.TagHelpers" Version="0.7.1" />
 </ItemGroup>
 ```
 
 Or via CLI:
 
 ```bash
-dotnet add package Gehtsoft.TagHelpers
+dotnet add package Gehtsoft.TagHelpers --version 0.7.1
 ```
 
 Optional companion packages:
@@ -38,6 +49,7 @@ Optional companion packages:
 | Package | Purpose | Install when |
 |---------|---------|--------------|
 | `Gehtsoft.TagHelpers.Utils` | Adapters for `Gehtsoft.Validator` / `Gehtsoft.Mapper` | The project already uses those validators |
+| `Gehtsoft.Build.ContentDelivery` | MSBuild target that downloads & unpacks the Kendo UI archive into `wwwroot/lib/Kendo.UI/` (see [§5a](#5a-gehtsoftbuildcontentdelivery--msbuild-target-preferred)) | You want a one-command install of Kendo from a private feed/HTTP URL |
 
 ## 2. DI registration
 
@@ -186,9 +198,57 @@ You don't need every file for every theme — only the files matching the theme 
 
 For `theme="default-v2"` (and any `*-v2` theme) the `common` and `mobile` files are skipped — only `kendo.<theme>.min.css` plus the scripts.
 
-### 5a. Bower (preferred)
+### 5a. Gehtsoft.Build.ContentDelivery — MSBuild target (preferred)
 
-The library originated in an era when Bower was standard for client assets, and the library docs and examples assume it. If the project doesn't already have Bower set up:
+This is the method used by the library's own `TestApp` and is the recommended approach for new projects. An MSBuild package adds a `GetContent` task that downloads a zip archive and unpacks it into the configured directory. It runs only when its target is invoked explicitly (not on every build), so it doesn't slow down day-to-day compilation.
+
+1. Add the package and the two MSBuild targets to the project's `.csproj`:
+
+   ```xml
+   <ItemGroup>
+     <PackageReference Include="Gehtsoft.Build.ContentDelivery"
+                       Version="0.1.11"
+                       IncludeAssets="build" />
+   </ItemGroup>
+
+   <Target Name="CleanContent">
+     <ItemGroup>
+       <FilesToDelete Include="wwwroot/lib/Kendo.UI/**/*" />
+     </ItemGroup>
+     <Delete Files="@(FilesToDelete)" />
+     <RemoveDir Directories="wwwroot/lib/Kendo.UI" />
+   </Target>
+
+   <Target Name="Content">
+     <GetContent Source="https://your-internal-feed/Kendo.UI/2022.3.1109.zip"
+                 Destination="$(MSBuildProjectDirectory)/wwwroot/lib/Kendo.UI"
+                 Unzip="true" />
+   </Target>
+   ```
+
+   `IncludeAssets="build"` keeps the package as a build-time dependency only — it does not flow to consumers of the project. Replace the `Source` URL with whatever Kendo UI 2022.x distribution your organization uses.
+
+2. Trigger the targets the first time, and any time the source archive changes:
+
+   ```bash
+   dotnet build YourApp.csproj -t:CleanContent,Content
+   ```
+
+   `CleanContent` wipes `wwwroot/lib/Kendo.UI/`; `Content` downloads the zip from `Source` and unpacks it into `Destination`. Together they refresh the local Kendo tree from scratch.
+
+   A small `updateKendo.bat` (or shell script) at the project root makes this routine reproducible:
+
+   ```bat
+   dotnet build YourApp.csproj -t:CleanContent,Content
+   ```
+
+3. Add `wwwroot/lib/` to `.gitignore` so the vendored Kendo tree stays out of source control — the build command above is the canonical way to recreate it on a fresh checkout.
+
+4. Verify the unpacked layout matches §5 above (the archive your team publishes should already be packed in that exact `script/` + `css/kendo/` shape).
+
+### 5b. Bower (legacy)
+
+The library originated in an era when Bower was standard for client assets, and older projects in the ecosystem still use it. New projects should prefer [§5a](#5a-gehtsoftbuildcontentdelivery--msbuild-target-preferred); use Bower only if the project already has a Bower setup or the team has a strong reason not to add an MSBuild dependency.
 
 1. Install Bower if needed: `npm install -g bower`.
 
@@ -224,9 +284,9 @@ The library originated in an era when Bower was standard for client assets, and 
 
 5. Add `wwwroot/lib/` to `.gitignore` if you don't want the large vendor tree in source control.
 
-### 5b. Manual placement
+### 5c. Manual placement
 
-If Bower isn't available (or the user prefers not to install it):
+If neither MSBuild content delivery nor Bower is available (or the user prefers not to install either):
 
 1. Obtain a Kendo UI 2022.x distribution (Telerik download portal, internal artifact server, or a vendored copy from another project).
 
@@ -295,15 +355,15 @@ If any of these fail, jump to **`troubleshooting.md`**.
 
 ## 8. Default ASP.NET MVC template — what to change
 
-When starting from `dotnet new mvc`, the diff from the default template is:
+When starting from `dotnet new mvc -f net10.0`, the diff from the default template is:
 
 | File | Change |
 |------|--------|
-| `<project>.csproj` | Add `<PackageReference Include="Gehtsoft.TagHelpers" Version="*" />`. |
-| `Program.cs` | After `var builder = WebApplication.CreateBuilder(args);` and before `builder.Build()`, add `builder.Services.AddTagHelperServices(builder.Environment);` and `builder.Services.AddKendo2022Driver();`. Add `using Gehtsoft.TagHelpers;` and `using Gehtsoft.TagHelpers.Driver.Kendo2022;`. |
+| `<project>.csproj` | Ensure `<TargetFramework>net10.0</TargetFramework>`. Add `<PackageReference Include="Gehtsoft.TagHelpers" Version="0.7.1" />`. If using the MSBuild Kendo install path, also add `Gehtsoft.Build.ContentDelivery` plus the `CleanContent` / `Content` targets — see [§5a](#5a-gehtsoftbuildcontentdelivery--msbuild-target-preferred). |
+| `Program.cs` | After `var builder = WebApplication.CreateBuilder(args);` and before `builder.Build()`, add `builder.Services.AddTagHelperServices(builder.Environment);` and `builder.Services.AddKendo2022Driver();`. Add `using Gehtsoft.TagHelpers;` and `using Gehtsoft.TagHelpers.Driver.Kendo2022;`. (Equivalent in `Startup.ConfigureServices`: same two calls, with `CurrentEnvironment` instead of `builder.Environment` — see [§2](#2-di-registration).) |
 | `Views/_ViewImports.cshtml` | Add `@addTagHelper *, Gehtsoft.TagHelpers`. |
 | `Views/Shared/_Layout.cshtml` | Inside `<head>`, add `<x-lib-includes theme="bootstrap" minimize="true" />`. The default template's existing `<link>` to `bootstrap.min.css` and its `<script>` to `bootstrap.bundle.min.js` can be removed once `<x-lib-includes>` is in place — Kendo's bootstrap-compat CSS replaces the former, and Kendo doesn't depend on Bootstrap's JS. |
-| `wwwroot/lib/` | Populate `Kendo.UI/` per [§5](#5-kendo-ui-assets-in-wwwrootlibkendoui). |
-| `.bowerrc`, `bower.json` | Create if using Bower (see [§5a](#5a-bower-preferred)). |
+| `wwwroot/lib/` | Populate `Kendo.UI/` per [§5](#5-kendo-ui-assets-in-wwwrootlibkendoui) — preferred path is the MSBuild target ([§5a](#5a-gehtsoftbuildcontentdelivery--msbuild-target-preferred)); Bower ([§5b](#5b-bower-legacy)) and manual placement ([§5c](#5c-manual-placement)) remain options. |
+| `.gitignore` | Add `wwwroot/lib/` so the vendored Kendo tree isn't checked in. |
 
 The default template's site CSS (`wwwroot/css/site.css`) and JS (`wwwroot/js/site.js`) can stay or go — they don't conflict with the library.

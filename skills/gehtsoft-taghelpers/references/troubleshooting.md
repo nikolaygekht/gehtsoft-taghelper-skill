@@ -44,6 +44,12 @@ The Kendo files aren't where the library expects them. Open DevTools → Network
 
 **Fix:** ensure `wwwroot/lib/Kendo.UI/` matches the layout in `setup.md` § 5. Common omissions: `jquery.min.js` (must load before `kendo.all.min.js`), the per-theme CSS (`kendo.<theme>.min.css`).
 
+If the project uses `Gehtsoft.Build.ContentDelivery` (`setup.md` § 5a) and `wwwroot/lib/Kendo.UI/` is empty after a fresh checkout, the `Content` target was never invoked — a normal `dotnet build` does not run it. Run it explicitly:
+
+```bash
+dotnet build YourApp.csproj -t:CleanContent,Content
+```
+
 ### `Unable to resolve service for type 'IUrlHelper'`
 
 A control needs the URL helper but the service is missing. `AddTagHelperServices()` registers a fallback, but if you also call `services.AddSingleton<IUrlHelper>(...)` somewhere with bad lifetime semantics it can clash.
