@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//home/ngeht/.claude/skills/skill-creator/**)",
+      "Bash(python -m scripts.aggregate_benchmark /mnt/d/develop/aiskills/coding/gehtsoft-taghelper-skill/gehtsoft-taghelpers-workspace/iteration-1 --skill-name gehtsoft-taghelpers)",
+      "Bash(python3 -m scripts.aggregate_benchmark /mnt/d/develop/aiskills/coding/gehtsoft-taghelper-skill/gehtsoft-taghelpers-workspace/iteration-1 --skill-name gehtsoft-taghelpers)",
+      "Bash(python3 -c ' *)",
+      "Bash(python3 *)"
+    ]
+  }
+}

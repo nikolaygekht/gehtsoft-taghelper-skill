@@ -1,0 +1,33 @@
+{
+  "skill_name": "gehtsoft-taghelpers",
+  "evals": [
+    {
+      "id": 1,
+      "name": "fresh-mvc-setup",
+      "prompt": "I just ran `dotnet new mvc -n MyShop` and have a default ASP.NET Core MVC project. I want to use the Gehtsoft.TagHelpers library so I can write x-form, x-grid, etc. in my Razor views. Walk me through every change I need to make to the project — the .csproj, Program.cs, _ViewImports.cshtml, _Layout.cshtml — and what to put under wwwroot/lib/ for Kendo UI. Use the bootstrap theme. Show me the complete contents of each file I need to add or change.",
+      "expected_output": "Step-by-step setup with concrete code for .csproj (NuGet), Program.cs (AddTagHelperServices + AddKendo2022Driver), _ViewImports.cshtml (@addTagHelper directive), _Layout.cshtml (<x-lib-includes theme=\"bootstrap\">), and the wwwroot/lib/Kendo.UI/ tree (with Bower as preferred path and manual placement as fallback).",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "customer-edit-form",
+      "prompt": "I'm building an ASP.NET Core MVC app that uses Gehtsoft.TagHelpers (already installed and wired up). Add an Edit.cshtml view for a Customer model with these properties: int Id, string Name, string Email, DateTime JoinedOn, string Status (one of \"active\", \"inactive\", \"pending\"). The form should POST to CustomersController.Save. I want client-side validation: Name required, Email required and a valid email format, JoinedOn not in the future, and Status required. Show me the complete .cshtml view, plus the Save action signature and how server-side validation errors get back to the form.",
+      "expected_output": "A complete Razor view using <x-form>, <x-form-errors>, <x-edit>/<x-date-edit>/<x-select>, <x-validate> rules including the @@-escaped email regex, and a controller Save action that returns the view with errors on ModelState invalidation.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "products-ajax-grid",
+      "prompt": "Using Gehtsoft.TagHelpers (already set up), build an Index.cshtml view with a data grid for Product records (Id, Name, Category, Price, InStock, CreatedAt). The grid should: page 25 records at a time server-side; allow sorting by Name, Price, CreatedAt; allow filtering on Name and Category; show Price as currency and CreatedAt as a short date; have a clickable Name column linking to /Products/Edit/{id}. Also show me the controller action that serves the grid data (use a generic JSON shape — I'll wire EF later).",
+      "expected_output": "Razor view with <x-grid>, <x-grid-column>s (including a template column for the Name link), <x-server-datasource> with server-paging/sorting/filtering, full <x-server-schema>/<x-server-model>/<x-server-field> structure, and a controller action returning { data, total } JSON.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "delete-confirm-popup",
+      "prompt": "In a Gehtsoft.TagHelpers Razor view, I want a Delete button that opens a confirmation dialog before actually doing anything. If the user confirms, it should POST to /Invoices/Delete/{id} via fetch (or AJAX) and reload the page on success. Show me the popup tag, the trigger button, and the confirm/cancel buttons inside, with all the script wiring.",
+      "expected_output": "Use of <x-popup> with <x-button role=\"action\"> children, <x-script role=\"click\"> handlers driving $('#…').data('kendoDialog').open()/close(), and a fetch POST to the delete endpoint.",
+      "files": []
+    }
+  ]
+}
