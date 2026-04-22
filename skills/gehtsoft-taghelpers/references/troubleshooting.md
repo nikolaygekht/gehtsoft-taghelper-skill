@@ -29,14 +29,81 @@ Add to `Views/_ViewImports.cshtml`. Areas need their own `_ViewImports.cshtml` w
 
 ### Page loads but Kendo widgets never initialize (textboxes look like raw `<input>`)
 
-`AddKendo2022Driver()` was not called. The legacy fallback path emits markup but skips Kendo init JS.
+No driver was registered. The legacy fallback path emits markup but skips Kendo init JS.
 
-**Fix:** in `Program.cs` / `Startup.ConfigureServices`:
+**Fix:** in `Program.cs` / `Startup.ConfigureServices`, call **exactly one** driver registration matching the vendored Kendo assets:
 
 ```csharp
 services.AddTagHelperServices(builder.Environment);
-services.AddKendo2022Driver();
+services.AddKendo2022Driver();   // for Kendo UI 2022.x assets
+// — OR —
+services.AddKendo2026Driver();   // for Kendo UI 2026.x assets
 ```
+
+See `setup.md` §2 for the full details.
+
+### Page loads but looks broken — unstyled widgets, JS errors, 404s for `/lib/Kendo.UI/css/kendo/...` or `/script/...`
+
+The Razor page itself renders fine (the `<x-lib-includes>` tag just emits `<link>`/`<script>` references — it doesn't fail the page). The problem surfaces when the browser then **fetches** the referenced CSS/JS: those fetches 404 because the driver expects filenames that aren't vendored, or the script bundle is incomplete. Visible symptoms:
+
+- Styles missing (layout collapses to raw HTML flow, Kendo colors/spacing gone).
+- Scripts missing (`kendoGrid`/`kendoDropDownList` init never runs, widgets stay as plain inputs).
+- DevTools Console: `$ is not defined`, `kendo is not defined`, `Uncaught TypeError: ...(anonymous)... is not a function`.
+- DevTools Network: 404 rows for files under `/lib/Kendo.UI/css/kendo/...` or `/lib/Kendo.UI/script/...`.
+
+Common root causes:
+
+- **No driver registered** — neither `AddKendo2022Driver()` nor `AddKendo2026Driver()` was called. See the previous entry.
+- **Driver/asset generation mismatch.** The driver requests filenames that only exist in the other generation:
+  - 2022 driver expects `kendo.<theme>.min.css`, `kendo.common-<family>.min.css`, `kendo.<theme>.mobile.min.css`, plus four scripts.
+  - 2026 driver expects `<family>-<variant>.css` (no `.min.` infix, no separate common/mobile), plus four scripts.
+
+**Fix:** either switch the driver call (`AddKendo2022Driver()` ↔ `AddKendo2026Driver()`) or re-vendor the matching Kendo generation (`setup.md` §5.1 for 2022 layout, §5.2 for 2026 layout).
+
+Quick check: open `wwwroot/lib/Kendo.UI/css/kendo/` — if it contains `kendo.*.min.css` filenames, it's 2022; if it contains `<family>-<variant>.css` filenames (e.g. `default-main.css`, `bootstrap-main.css`), it's 2026. Match the `AddKendoXXXXDriver()` call to what you see.
+
+### jQuery or Bootstrap differences after switching Kendo 2022 ↔ 2026
+
+The two Kendo generations ship **different** jQuery and Bootstrap versions alongside Kendo itself:
+
+| Vendor file | Kendo 2022 ships | Kendo 2026 ships |
+|-------------|------------------|------------------|
+| `lib/Kendo.UI/script/jquery.min.js` | jQuery **1.12.4** | jQuery **4.0.0** |
+| `lib/Kendo.UI/css/bootstrap.min.css` | Bootstrap **3.3.7** | Bootstrap **5.3.8** |
+| `lib/Kendo.UI/script/bootstrap.bundle.min.js` | *not shipped* | Bootstrap 5 JS bundle (incl. Popper) |
+| `lib/Kendo.UI/script/jquery.ui.min.js` | *not shipped* | jQuery UI (shipped, not loaded by `<x-lib-includes>`) |
+| `lib/Kendo.UI/script/angular.min.js`, `kendo.angular.min.js` | shipped (legacy) | *not shipped* |
+
+This is a **breaking change** across the jump — app code that assumed the 1.x jQuery or Bootstrap-3 markup will stop working cleanly on 2026. Watch for:
+
+**Removed in jQuery 3.x / 4.x that 1.12 still has:**
+- `.size()` → use `.length`.
+- `.load(fn)`, `.unload(fn)`, `.error(fn)` event shorthands → use `.on('load', fn)` etc.
+- `.live()` / `.die()` (event delegation) → use `.on(event, selector, fn)` on a parent.
+- `.andSelf()` → renamed to `.addBack()`.
+- `$.browser` → gone.
+- `.toggle(fn1, fn2)` (alternating click handler) → gone.
+- Property access via `.attr('checked')` returning boolean → use `.prop('checked')`.
+
+**Breaking CSS from Bootstrap 3 → 5 (via Bootstrap 4):**
+- `.panel`, `.panel-default`, `.panel-body`, `.well`, `.thumbnail` — gone; replaced by `.card`.
+- `.btn-default` → `.btn-secondary` (Bootstrap 4+).
+- `.hidden-xs` / `.visible-xs` etc. → replaced by `.d-none`, `.d-*-block` responsive utilities.
+- `.navbar-fixed-top` → `.fixed-top` + `.navbar`.
+- `.img-responsive` → `.img-fluid`.
+- `.col-xs-*` → `.col-*` (the "xs" breakpoint is the default, no prefix).
+- `.col-sm-6 col-md-4` grid syntax works but column behavior at breakpoints has shifted; retest responsive layouts.
+- Glyphicons (`.glyphicon`) removed — switch to Kendo's `k-i-*` icons or Bootstrap Icons.
+- Data attributes changed: `data-toggle` → `data-bs-toggle`, `data-target` → `data-bs-target`, etc.
+
+**Symptom patterns after a 2022 → 2026 migration:**
+- App-specific JS throws `TypeError: $(...).live is not a function` or similar → legacy jQuery API usage, fix per the list above.
+- A Bootstrap-styled page layout collapses, buttons look grey/unstyled, navbars break → Bootstrap-3 class names no longer match rules in the 5.3 CSS.
+- Modals/dropdowns that used `data-toggle="modal"` silently stop working → missing the `-bs-` infix.
+
+**Fix:** audit `site.js`, `site.css`, and Razor views for the patterns above. Running the page against `<body class="k-body">` + 2026 assets and fixing each DevTools error one-by-one is usually the fastest path.
+
+Note: `<x-lib-includes>` only loads `jquery.min.js`, `jquery.cookie.min.js`, `jszip.min.js`, and `kendo.all.min.js`. `bootstrap.bundle.min.js` and `jquery.ui.min.js` are available in the 2026 tree but **not auto-loaded** — if you want them, add your own `<script>` tag or `<x-bundle>` entry.
 
 ### `<x-lib-includes>` emits nothing or browser shows 404s for `kendo.*.min.js`
 
@@ -56,11 +123,20 @@ A control needs the URL helper but the service is missing. `AddTagHelperServices
 
 **Fix:** ensure `AddTagHelperServices` is called *after* `AddMvc()`/`AddControllersWithViews()`, and don't manually register `IUrlHelper`.
 
-### `AddKendo2022Driver` exists but tags still don't initialize
+### `AddKendo2022Driver` / `AddKendo2026Driver` exists but tags still don't initialize
 
 The driver registers `ITagLibraryDriver` and `ILibraryProvider` as singletons via `TryAddSingleton` — meaning if you registered something else for those interfaces earlier, the driver is silently skipped.
 
-**Fix:** check for stray `services.AddSingleton<ITagLibraryDriver>(…)` lines in your codebase. There should be only one.
+**Fix:** check for stray `services.AddSingleton<ITagLibraryDriver>(…)` lines in your codebase. There should be only one. Also verify you're not calling both `AddKendo2022Driver()` and `AddKendo2026Driver()` — the second one is a no-op thanks to `TryAddSingleton`, but the intent mismatch usually means the vendored assets are wrong for the active driver (see the "404s in DevTools" entry above).
+
+### Theme value works on one driver but not the other
+
+Driver-specific theme vocabularies (see `setup.md` §6):
+
+- `default-v2`, `office365`, `bootstrap-v4`, `fiori`, `material-v2`, `nova` — valid on Kendo 2022 (map to distinct `.min.css` files); on Kendo 2026 they're remapped to generic families (most collapse to `default-main` / `bootstrap-4` / `material-main` / `classic-main`).
+- `classic`, `fluent`, and any variant filename like `default-main-dark`, `bootstrap-3`, `classic-opal` — valid on Kendo 2026 only. Passing these to the 2022 driver will produce a 404 for a file like `kendo.classic.min.css` which doesn't exist.
+
+**Fix:** pick a theme value valid on the driver you're using. If the app needs to support both, drive the theme from configuration and use values that exist on both (`default`, `bootstrap`, `material`).
 
 ---
 

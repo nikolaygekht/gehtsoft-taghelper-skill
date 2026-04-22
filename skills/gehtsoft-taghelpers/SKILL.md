@@ -1,29 +1,32 @@
 ---
 name: gehtsoft-taghelpers
-description: Use this skill whenever you write or modify ASP.NET Core code that involves the Gehtsoft.TagHelpers Razor library — installing it into a project, registering its services in Program.cs/Startup.cs, placing Kendo UI assets under wwwroot/lib/Kendo.UI/, or authoring Razor views that use any x-* tag (x-form, x-control, x-edit, x-numeric-edit, x-date-edit, x-select, x-check, x-grid, x-popup, x-menu, x-bundle, x-lib-includes, x-script, x-validate, x-form-errors, x-tabstrip, x-splitter, x-button, x-tree-control, x-upload, etc.). Trigger this skill whenever a Razor file contains any x-* tag, when @addTagHelper *, Gehtsoft.TagHelpers appears in _ViewImports.cshtml, when a .csproj references the Gehtsoft.TagHelpers package, or when the user asks how to add forms, grids, popups, menus, or Kendo widgets to an ASP.NET Core MVC view using Gehtsoft tag helpers — even if they don't explicitly say "Gehtsoft" or "TagHelpers". Gehtsoft.TagHelpers is a custom library; do not assume Kendo UI MVC helpers, Telerik UI for ASP.NET Core, or vanilla Razor TagHelpers — the syntax and DI wiring are specific to this library.
+description: Use this skill whenever you write or modify ASP.NET Core code that involves the Gehtsoft.TagHelpers Razor library — installing it into a project, registering its services (AddKendo2022Driver or AddKendo2026Driver) in Program.cs/Startup.cs, placing Kendo UI assets under wwwroot/lib/Kendo.UI/, wiring site-wide CSS/JS (wwwroot/css/site.css, wwwroot/js/site.js, x-bundle), or authoring Razor views that use any x-* tag (x-form, x-control, x-edit, x-numeric-edit, x-date-edit, x-select, x-check, x-grid, x-popup, x-menu, x-bundle, x-lib-includes, x-script, x-validate, x-form-errors, x-tabstrip, x-splitter, x-button, x-tree-control, x-upload, etc.). Trigger this skill whenever a Razor file contains any x-* tag, when @addTagHelper *, Gehtsoft.TagHelpers appears in _ViewImports.cshtml, when a .csproj references the Gehtsoft.TagHelpers package, or when the user asks how to add forms, grids, popups, menus, or Kendo widgets to an ASP.NET Core MVC view using Gehtsoft tag helpers — even if they don't explicitly say "Gehtsoft" or "TagHelpers". Gehtsoft.TagHelpers is a custom library; do not assume Kendo UI MVC helpers, Telerik UI for ASP.NET Core, or vanilla Razor TagHelpers — the syntax and DI wiring are specific to this library.
 ---
 
 # Gehtsoft.TagHelpers Skill
 
-A Razor Tag Helper library that wraps Kendo UI 2022 widgets and Bootstrap layout into custom `<x-*>` tags. It targets server-rendered ASP.NET Core MVC apps and emphasizes a declarative, composable form/grid model with built-in client+server validation and AJAX form posting.
+A Razor Tag Helper library that wraps Kendo UI widgets and Bootstrap layout into custom `<x-*>` tags. It targets server-rendered ASP.NET Core MVC apps and emphasizes a declarative, composable form/grid model with built-in client+server validation and AJAX form posting.
 
 This skill helps you do three things:
 
-1. **Install** the library cleanly into a fresh or existing ASP.NET Core MVC project.
-2. **Author** Razor markup using the library's `<x-*>` tag families.
-3. **Diagnose** common errors (missing assets, model-binding edge cases, AJAX pitfalls).
+1. **Install** the library cleanly into a fresh or existing ASP.NET Core MVC project — for either Kendo UI 2022.x or Kendo UI 2026.x.
+2. **Author** Razor markup using the library's `<x-*>` tag families, including co-located site CSS/JS.
+3. **Diagnose** common errors (missing assets, driver mismatches, model-binding edge cases, AJAX pitfalls).
 
 ## Critical context (read once, internalize)
 
 - **Target framework / version.** The current package (`Gehtsoft.TagHelpers` 0.7.1) targets `net10.0`. The consuming project must target `net10.0` (or a compatible newer TFM); older `net8.0`/`net9.0` projects must be retargeted before adding the package.
-- **Two registrations are required** in `ConfigureServices`: `services.AddTagHelperServices(env)` registers the core; `services.AddKendo2022Driver()` registers the *driver* that actually emits HTML. **Without the driver, no `<x-*>` tag renders correctly** — the legacy fallback path is incomplete and should not be relied on.
-- **Kendo UI is not bundled.** The library expects Kendo UI assets at `wwwroot/lib/Kendo.UI/{script,css}/...`. You install Kendo separately. The current canonical method is the `Gehtsoft.Build.ContentDelivery` MSBuild package (used by the library's own `TestApp`); Bower and manual placement remain supported. The `<x-lib-includes>` tag emits `<script>`/`<link>` tags pointing into this directory.
+- **Pick exactly one Kendo driver.** `services.AddKendo2022Driver()` is paired with Kendo UI 2022.x assets; `services.AddKendo2026Driver()` is paired with Kendo UI 2026.x assets. The drivers use different theme names, expect different CSS file layouts, and register different markup writers — mixing them (2022 driver + 2026 assets, or vice versa) produces broken widgets. **Do not call both.** See `references/setup.md` §2 and §5.
+- **Two registrations are required** in `ConfigureServices`: `services.AddTagHelperServices(env)` registers the core; the matching `AddKendo2022Driver()` / `AddKendo2026Driver()` registers the *driver* that actually emits HTML. **Without the driver, no `<x-*>` tag renders correctly** — the legacy fallback path is incomplete and should not be relied on.
+- **Kendo UI is not bundled.** The library expects Kendo UI assets at `wwwroot/lib/Kendo.UI/{script,css}/...`. You install Kendo separately. The current canonical method is the `Gehtsoft.Build.ContentDelivery` MSBuild package (used by the library's own `TestApp.Kendo2022` / `TestApp.Kendo2026`); Bower and manual placement remain supported. The `<x-lib-includes>` tag emits `<script>`/`<link>` tags pointing into this directory.
 - **`<x-lib-includes>` and `_ViewImports.cshtml` are both mandatory.** Without `@addTagHelper *, Gehtsoft.TagHelpers` the parser silently treats `<x-form>` as raw HTML; without `<x-lib-includes>` (or equivalent bundles) the page loads but Kendo widgets never initialize.
+- **Local site CSS/JS are additive, not a replacement.** `<x-lib-includes>` loads only the Kendo + library payload. App-specific styles (`wwwroot/css/site.css`) and scripts (`wwwroot/js/site.js`) are included separately — either with plain `<link>`/`<script>` tags, or via `<x-bundle>` after registering a `BundleFactory` bundle in `Configure`. See **`references/assets.md`**.
+- **The underlying jQuery and Bootstrap versions differ between the drivers.** Kendo 2022 ships jQuery 1.12.4 + Bootstrap 3.3.7; Kendo 2026 ships jQuery 4.0.0 + Bootstrap 5.3.8. This is a breaking change for app code that uses jQuery 1.x-only APIs (`.live()`, `.size()`, `.andSelf()`, event shorthands like `.load(fn)` / `.error(fn)`) or Bootstrap-3/4 markup (`.panel`, `.well`, `.btn-default`, `.glyphicon`, `.hidden-xs`, `data-toggle="…"`). Migrating 2022 → 2026 is not just re-vendoring — it's also a jQuery and Bootstrap upgrade. See `references/setup.md` §5.3 and `references/troubleshooting.md`.
 - **Examples below use generic models** (`Customer`, `Product`, `Invoice`). Substitute the user's real model — never copy these names verbatim into the user's code.
 
 ## Setup at a glance
 
-A complete install touches five places. Detailed steps and rationale: **`references/setup.md`**.
+A complete install touches five places. Detailed steps and rationale: **`references/setup.md`**. Pick the driver row that matches the Kendo UI assets the project will vendor.
 
 ```
 ┌──────────────────────────────┬────────────────────────────────────────────────┐
@@ -32,21 +35,32 @@ A complete install touches five places. Detailed steps and rationale: **`referen
 │                              │     Version="0.7.1" />                         │
 ├──────────────────────────────┼────────────────────────────────────────────────┤
 │ Program.cs / Startup.cs      │ services.AddTagHelperServices(env);            │
-│   (in ConfigureServices)     │ services.AddKendo2022Driver();                 │
+│   (in ConfigureServices)     │ // Kendo 2022.x assets:                        │
+│                              │ services.AddKendo2022Driver();                 │
+│                              │ // — OR — Kendo 2026.x assets:                 │
+│                              │ services.AddKendo2026Driver();                 │
 ├──────────────────────────────┼────────────────────────────────────────────────┤
 │ Views/_ViewImports.cshtml    │ @addTagHelper *, Gehtsoft.TagHelpers           │
 ├──────────────────────────────┼────────────────────────────────────────────────┤
 │ Views/Shared/_Layout.cshtml  │ <x-lib-includes theme="bootstrap"              │
 │   (inside <head>)            │                  minimize="true" />            │
+│                              │ <x-bundle name="site-scripts" /> (optional)    │
+│                              │ <link href="~/css/site.css" />  (optional)     │
 ├──────────────────────────────┼────────────────────────────────────────────────┤
 │ wwwroot/lib/Kendo.UI/        │ Kendo UI scripts + theme CSS                   │
-│   (via Gehtsoft.Build.       │ (jquery.min.js, kendo.all.min.js, kendo.<theme>│
-│   ContentDelivery MSBuild    │  .min.css, etc. — see references/setup.md)     │
-│   target, Bower, or manual)  │                                                │
+│   (via Gehtsoft.Build.       │ 2022: kendo.<theme>.min.css + common/mobile    │
+│   ContentDelivery MSBuild    │ 2026: <family>-<variant>.css (self-contained)  │
+│   target, Bower, or manual)  │ — see references/setup.md §5                   │
+├──────────────────────────────┼────────────────────────────────────────────────┤
+│ wwwroot/css/, wwwroot/js/    │ App-specific site.css / site.js                │
+│   (your code's home)         │ — see references/assets.md                     │
 └──────────────────────────────┴────────────────────────────────────────────────┘
 ```
 
-Supported themes for `<x-lib-includes theme="...">`: `default`, `default-v2`, `bootstrap`, `bootstrap-v4`, `fiori`, `material`, `material-v2`, `nova`, `office365`.
+Supported themes for `<x-lib-includes theme="...">`:
+
+- **Kendo 2022 driver:** `default`, `default-v2`, `bootstrap`, `bootstrap-v4`, `fiori`, `material`, `material-v2`, `nova`, `office365`.
+- **Kendo 2026 driver:** `default`, `bootstrap`, `material`, `classic`, `fluent` — plus any native 2026 variant filename (e.g. `default-main-dark`, `bootstrap-3`, `bootstrap-turquoise`, `classic-opal`, `fluent-1-dark`) passed as-is. Legacy 2022 names (`default-v2`, `office365`, `bootstrap-v4`, `fiori`, `material-v2`, `nova`) are silently remapped to their closest 2026 equivalent — see `references/setup.md` §6.
 
 ## Tag map — where to look
 
@@ -54,11 +68,12 @@ The library has ~50 tags. Group them by purpose and load the matching reference 
 
 | You need to… | Load this reference | Key tags |
 |--------------|---------------------|----------|
-| Install or wire up the library | **`references/setup.md`** | (DI calls, `_ViewImports`, `_Layout`, MSBuild content delivery / Bower) |
+| Install or wire up the library (either Kendo 2022 or 2026) | **`references/setup.md`** | (DI calls, `_ViewImports`, `_Layout`, MSBuild content delivery / Bower, per-driver asset layout) |
+| Wire local CSS / JS (site.css, site.js, bundles, cache busting) | **`references/assets.md`** | `<link>`, `<script>`, `<x-bundle>`, `BundleFactory`, `<x-script>`, `@section Header` |
 | Build a form with input controls and validation | **`references/forms.md`** | `x-form`, `x-control`, `x-edit`, `x-numeric-edit`, `x-date-edit`, `x-select`, `x-check`, `x-radio`, `x-text-area`, `x-tree-control`, `x-upload`, `x-validate`, `x-form-errors`, `x-form-group` |
 | Render a data grid (paged/sorted/filterable, optionally editable) | **`references/grids.md`** | `x-grid`, `x-grid-column`, `x-server-datasource`, `x-server-transport`, `x-server-schema`, `x-server-model` |
 | Add navigation, popups, layout widgets, scripts, bundles | **`references/common.md`** | `x-bundle`, `x-lib-includes`, `x-script`, `x-template`, `x-popup`, `x-menu` family, `x-tabstrip`, `x-splitter`, `x-button`, `x-button-group`, `x-notification`, `x-link`, `x-row`/`x-col`, `x-area` |
-| Diagnose an error or unexpected behavior | **`references/troubleshooting.md`** | (pitfalls per area) |
+| Diagnose an error or unexpected behavior | **`references/troubleshooting.md`** | (pitfalls per area — includes 2022 ↔ 2026 driver mismatch symptoms) |
 
 > **Don't load all references at once.** Load the one(s) the current task needs. Each reference file has a TOC at the top so you can jump.
 
@@ -146,7 +161,7 @@ Required by the library at runtime:
 - `.NET 10` (`net10.0` TFM) — the package targets `net10.0` only
 - `Microsoft.AspNetCore.App` (framework reference, present by default in MVC projects)
 - jQuery (loaded via the Kendo bundle)
-- Kendo UI 2022.x assets in `wwwroot/lib/Kendo.UI/`
+- Kendo UI assets in `wwwroot/lib/Kendo.UI/` — **2022.x** when the project uses `AddKendo2022Driver()`, **2026.x** when it uses `AddKendo2026Driver()`
 
 Optional but commonly used:
 - `Gehtsoft.TagHelpers.Utils` — bridge to a Validator/Mapper stack. Skip unless the user already uses those.

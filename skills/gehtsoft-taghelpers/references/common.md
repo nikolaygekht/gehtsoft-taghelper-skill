@@ -27,7 +27,7 @@ Layout, navigation, scripting, and miscellaneous tags. (Form controls live in `f
 
 ## `<x-lib-includes>`
 
-Renders all `<link>` and `<script>` tags needed to load Kendo UI + the library's bundled CSS/JS. Place inside `<head>` of the shared layout. See **`setup.md`** for theme list and asset layout.
+Renders all `<link>` and `<script>` tags needed to load Kendo UI + the library's bundled CSS/JS. Place inside `<head>` of the shared layout. See **`setup.md`** for the theme list (per driver — 2022 and 2026 have different theme vocabularies) and the expected asset layout, and **`assets.md`** for how this tag composes with your app's own CSS/JS.
 
 ```cshtml
 <x-lib-includes theme="bootstrap" minimize="true" />
@@ -35,7 +35,7 @@ Renders all `<link>` and `<script>` tags needed to load Kendo UI + the library's
 
 | Attribute | Purpose |
 |-----------|---------|
-| `theme` | Kendo theme name (case-insensitive) |
+| `theme` | Kendo theme name (case-insensitive). On the 2022 driver: one of `default`, `default-v2`, `bootstrap`, `bootstrap-v4`, `fiori`, `material`, `material-v2`, `nova`, `office365`. On the 2026 driver: one of `default`, `bootstrap`, `material`, `classic`, `fluent` — or any native 2026 variant filename (`default-main-dark`, `bootstrap-3`, etc.) passed verbatim. |
 | `minimize` | Minimize the inline library JS/CSS (Kendo's own files are always pre-minimized) |
 
 ---
@@ -52,7 +52,7 @@ Emits a `<link>` or `<script>` for a bundle registered with `BundleFactory`. Use
 </head>
 ```
 
-The bundle must be created in `Configure` (see `setup.md` § "Optional — site-wide script bundle").
+The bundle must be created in `Configure`. For a full walkthrough of `BundleFactory` — inline vs file-backed content, embedded resources, minimization, cache-hashed URLs, and how `<x-bundle>` interleaves with `<link>`/`<script>`/`<x-script>` — see **`assets.md`** §5.
 
 | Attribute | Purpose |
 |-----------|---------|
